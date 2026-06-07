@@ -6,8 +6,5 @@
 [functions]
   node_bundler = "esbuild"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
 [functions."push-scheduler"]
   schedule = "* * * * *"
