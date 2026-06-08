@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { requestNotificationPermission } from '../utils/notifications';
+import { requestNotificationPermission, getNotificationPermission } from '../utils/notifications';
 import { importData } from '../utils/storage';
 
 export default function Settings() {
   const navigate = useNavigate();
   const [importMsg, setImportMsg] = useState('');
 
-  const notifStatus = 'Notification' in window ? Notification.permission : 'not-supported';
+  const notifStatus = getNotificationPermission();
 
   const handleRequestNotif = async () => {
     const result = await requestNotificationPermission();
     if (result === 'granted') {
       setImportMsg('✅ Notificaciones activadas');
+    } else if (result === 'not-supported') {
+      setImportMsg('Para activar notificaciones, instala la app en tu pantalla de inicio primero.');
     } else {
       setImportMsg('Permisos denegados. Actívalos desde ajustes del navegador.');
     }
@@ -37,7 +39,7 @@ export default function Settings() {
     granted: '✅ Activadas',
     denied: '❌ Denegadas - activa en ajustes del navegador',
     default: '⚠️ No configuradas',
-    'not-supported': '⚠️ No soportado en este navegador',
+    'not-supported': '⚠️ Instala la app en pantalla de inicio para activarlas',
   }[notifStatus] || notifStatus;
 
   return (
@@ -64,14 +66,23 @@ export default function Settings() {
           <div style={{ fontSize: 14, marginBottom: 8 }}>
             Estado: <strong style={{ color: 'var(--accent)' }}>{notifLabel}</strong>
           </div>
-          {notifStatus !== 'granted' && notifStatus !== 'denied' && (
+          {notifStatus === 'not-supported' && (
+            <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 10 }}>
+              Safari en iPhone solo soporta notificaciones cuando la app está instalada en la pantalla de inicio como PWA.<br/><br/>
+              1. Abre esta página en Safari<br/>
+              2. Toca el botón compartir ⬆️<br/>
+              3. Selecciona "Agregar a pantalla de inicio"<br/>
+              4. Abre la app desde el ícono
+            </div>
+          )}
+          {(notifStatus === 'default' || notifStatus === 'granted') && (
             <button className="btn btn-primary" style={{ padding: '10px 16px', fontSize: 14 }} onClick={handleRequestNotif}>
-              Activar notificaciones
+              {notifStatus === 'granted' ? 'Notificaciones activas ✅' : 'Activar notificaciones'}
             </button>
           )}
           {notifStatus === 'denied' && (
             <p style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>
-              Para activar notificaciones, ve a Ajustes del navegador &gt; Permisos del sitio &gt; Notificaciones y permite este sitio.
+              Ve a Ajustes del iPhone &gt; Safari &gt; y permite notificaciones para este sitio.
             </p>
           )}
         </div>
@@ -81,7 +92,6 @@ export default function Settings() {
 
       <div className="form-section">
         <label className="form-label">Datos</label>
-
         <div style={{
           background: 'var(--bg3)',
           border: '1px solid var(--border)',
@@ -125,9 +135,7 @@ export default function Settings() {
       <div className="divider" />
 
       <div style={{ padding: '0 16px', textAlign: 'center' }}>
-        <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 4 }}>
-          Habit Tracker Gogo
-        </p>
+        <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 4 }}>Habit Tracker Gogo</p>
         <p style={{ fontSize: 12, color: 'var(--text3)' }}>
           Todos los datos se guardan localmente en tu dispositivo.<br/>
           Usa Exportar/Importar para transferir entre dispositivos.
