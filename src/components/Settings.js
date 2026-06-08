@@ -1,22 +1,36 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { requestNotificationPermission, getNotificationPermission } from '../utils/notifications';
-import { importData } from '../utils/storage';
+import { requestNotificationPermission, getNotificationPermission, subscribeToWebPush, syncToServer } from '../utils/notifications';
+import { importData, getHabits, getCompletions } from '../utils/storage';
 
 export default function Settings() {
   const navigate = useNavigate();
   const [importMsg, setImportMsg] = useState('');
-
-  const notifStatus = getNotificationPermission();
+  const [notifStatus, setNotifStatus] = useState(getNotificationPermission());
 
   const handleRequestNotif = async () => {
     const result = await requestNotificationPermission();
+    setNotifStatus(result);
+
     if (result === 'granted') {
-      setImportMsg('✅ Notificaciones activadas');
+      // Subscribe to web push immediately after permission granted
+      try {
+        const sub = await subscribeToWebPush();
+        if (sub) {
+          // Also sync habits so server knows what to send
+          const habits = getHabits();
+          await syncToServer(habits, getCompletions());
+          setImportMsg('✅ Notificaciones activadas y registradas en el servidor.');
+        } else {
+          setImportMsg('✅ Notificaciones activadas. (Push en background puede no estar disponible en este dispositivo)');
+        }
+      } catch (err) {
+        setImportMsg('✅ Notificaciones activadas localmente.');
+      }
     } else if (result === 'not-supported') {
       setImportMsg('Para activar notificaciones, instala la app en tu pantalla de inicio primero.');
     } else {
-      setImportMsg('Permisos denegados. Actívalos desde ajustes del navegador.');
+      setImportMsg('Permisos denegados. Actívalos desde Ajustes del iPhone > Notificaciones.');
     }
   };
 
@@ -37,9 +51,9 @@ export default function Settings() {
 
   const notifLabel = {
     granted: '✅ Activadas',
-    denied: '❌ Denegadas - activa en ajustes del navegador',
+    denied: '❌ Denegadas',
     default: '⚠️ No configuradas',
-    'not-supported': '⚠️ Instala la app en pantalla de inicio para activarlas',
+    'not-supported': '⚠️ Instala la app en pantalla de inicio',
   }[notifStatus] || notifStatus;
 
   return (
@@ -63,29 +77,52 @@ export default function Settings() {
           padding: 16,
           marginBottom: 10,
         }}>
-          <div style={{ fontSize: 14, marginBottom: 8 }}>
+          <div style={{ fontSize: 14, marginBottom: 12 }}>
             Estado: <strong style={{ color: 'var(--accent)' }}>{notifLabel}</strong>
           </div>
+
           {notifStatus === 'not-supported' && (
             <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 10 }}>
-              Safari en iPhone solo soporta notificaciones cuando la app está instalada en la pantalla de inicio como PWA.<br/><br/>
+              Safari en iPhone solo soporta notificaciones cuando la app está instalada como PWA.<br/><br/>
               1. Abre esta página en Safari<br/>
               2. Toca el botón compartir ⬆️<br/>
               3. Selecciona "Agregar a pantalla de inicio"<br/>
-              4. Abre la app desde el ícono
+              4. Abre la app desde el ícono y vuelve aquí
             </div>
           )}
-          {(notifStatus === 'default' || notifStatus === 'granted') && (
-            <button className="btn btn-primary" style={{ padding: '10px 16px', fontSize: 14 }} onClick={handleRequestNotif}>
-              {notifStatus === 'granted' ? 'Notificaciones activas ✅' : 'Activar notificaciones'}
+
+          {notifStatus === 'default' && (
+            <button className="btn btn-primary" style={{ padding: '12px 16px', fontSize: 14 }} onClick={handleRequestNotif}>
+              🔔 Activar notificaciones
             </button>
           )}
+
+          {notifStatus === 'granted' && (
+            <button className="btn btn-ghost" style={{ padding: '12px 16px', fontSize: 14 }} onClick={handleRequestNotif}>
+              🔄 Re-registrar en servidor
+            </button>
+          )}
+
           {notifStatus === 'denied' && (
             <p style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>
-              Ve a Ajustes del iPhone &gt; Safari &gt; y permite notificaciones para este sitio.
+              Ve a <strong>Ajustes del iPhone &gt; Notificaciones</strong> y activa las notificaciones para esta app.
             </p>
           )}
         </div>
+
+        {importMsg && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'var(--accent-dim)',
+            border: '1px solid var(--accent-glow)',
+            borderRadius: 10,
+            fontSize: 13,
+            color: 'var(--accent)',
+            marginBottom: 10,
+          }}>
+            {importMsg}
+          </div>
+        )}
       </div>
 
       <div className="divider" />
@@ -117,19 +154,6 @@ export default function Settings() {
             <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
           </label>
         </div>
-
-        {importMsg && (
-          <div style={{
-            padding: '12px 16px',
-            background: 'var(--accent-dim)',
-            border: '1px solid var(--accent-glow)',
-            borderRadius: 10,
-            fontSize: 13,
-            color: 'var(--accent)',
-          }}>
-            {importMsg}
-          </div>
-        )}
       </div>
 
       <div className="divider" />
@@ -137,8 +161,7 @@ export default function Settings() {
       <div style={{ padding: '0 16px', textAlign: 'center' }}>
         <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 4 }}>Habit Tracker Gogo</p>
         <p style={{ fontSize: 12, color: 'var(--text3)' }}>
-          Todos los datos se guardan localmente en tu dispositivo.<br/>
-          Usa Exportar/Importar para transferir entre dispositivos.
+          Todos los datos se guardan localmente en tu dispositivo.
         </p>
       </div>
     </div>
