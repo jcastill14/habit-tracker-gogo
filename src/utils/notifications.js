@@ -51,7 +51,7 @@ function urlBase64ToUint8Array(base64String) {
 export const subscribeToWebPush = async () => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
 
-  const VAPID_PUBLIC_KEY = 'BPHbEIv13hiP93ZJESmG0O-ZsxJS3S4ye46GM2XoQw5Z46M18NserYT4h60MyzmeYJmHKFegRdJWTkJxAZuCoSs';
+  const VAPID_PUBLIC_KEY = 'BCIxc0ARwrFIMMbnW3w9eKpBpGGeZLxZSb3BkInsO8QR870e_wtPsMc6nw7OJvds7j_B1YA0H1W6Y09eZNa9YyI';
   if (!VAPID_PUBLIC_KEY) return null;
 
   try {
