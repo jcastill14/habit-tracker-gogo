@@ -51,7 +51,7 @@ function urlBase64ToUint8Array(base64String) {
 export const subscribeToWebPush = async () => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
 
-  const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+  const VAPID_PUBLIC_KEY = 'BPHbEIv13hiP93ZJESmG0O-ZsxJS3S4ye46GM2XoQw5Z46M18NserYT4h60MyzmeYJmHKFegRdJWTkJxAZuCoSs';
   if (!VAPID_PUBLIC_KEY) return null;
 
   try {
