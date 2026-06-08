@@ -1,5 +1,14 @@
 // Notification utilities with real Web Push support
 
+// Safe check - Notification API not available in Safari unless installed as PWA
+const isNotificationSupported = () => {
+  try {
+    return typeof window !== 'undefined' && 'Notification' in window;
+  } catch {
+    return false;
+  }
+};
+
 export const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
@@ -13,20 +22,25 @@ export const registerServiceWorker = async () => {
 };
 
 export const requestNotificationPermission = async () => {
-  if (!('Notification' in window)) return 'not-supported';
+  if (!isNotificationSupported()) return 'not-supported';
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
   const permission = await Notification.requestPermission();
   return permission;
 };
 
+export const getNotificationPermission = () => {
+  if (!isNotificationSupported()) return 'not-supported';
+  return Notification.permission;
+};
+
 export const showLocalNotification = (title, body) => {
+  if (!isNotificationSupported()) return;
   if (Notification.permission === 'granted') {
     new Notification(title, { body, icon: '/favicon.ico' });
   }
 };
 
-// Convert base64 VAPID public key to Uint8Array
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -34,18 +48,11 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
-// Subscribe to real Web Push and save to server
 export const subscribeToWebPush = async () => {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.warn('Push not supported');
-    return null;
-  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
 
   const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY;
-  if (!VAPID_PUBLIC_KEY) {
-    console.warn('No VAPID public key configured');
-    return null;
-  }
+  if (!VAPID_PUBLIC_KEY) return null;
 
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -58,7 +65,6 @@ export const subscribeToWebPush = async () => {
       });
     }
 
-    // Save subscription to server
     const subJson = subscription.toJSON();
     await fetch('/.netlify/functions/save-subscription', {
       method: 'POST',
@@ -77,7 +83,6 @@ export const subscribeToWebPush = async () => {
   }
 };
 
-// Sync habits and completions to Supabase so server can send pushes
 export const syncToServer = async (habits, completions) => {
   try {
     await fetch('/.netlify/functions/sync-habits', {
@@ -90,7 +95,6 @@ export const syncToServer = async (habits, completions) => {
   }
 };
 
-// Fallback: local setTimeout-based notifications (when tab is open)
 const scheduledTimers = {};
 
 export const clearScheduledNotifications = (habitId) => {
@@ -103,6 +107,7 @@ export const clearScheduledNotifications = (habitId) => {
 export const scheduleHabitNotifications = (habit) => {
   clearScheduledNotifications(habit.id);
   if (!habit.notifications?.enabled) return;
+  if (!isNotificationSupported()) return;
   if (Notification.permission !== 'granted') return;
 
   const timers = [];
@@ -145,6 +150,7 @@ export const scheduleAllHabitNotifications = (habits) => {
 };
 
 export const checkStreakAlerts = (habits, getStreak, isCompleted, formatDate) => {
+  if (!isNotificationSupported()) return;
   if (Notification.permission !== 'granted') return;
   const today = formatDate(new Date());
   habits.forEach((habit) => {
