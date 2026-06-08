@@ -12,6 +12,7 @@ import {
   checkStreakAlerts,
   subscribeToWebPush,
   syncToServer,
+  getNotificationPermission,
 } from './utils/notifications';
 import { getHabits, getCompletions, getStreak, isCompleted, formatDate } from './utils/storage';
 import './styles/global.css';
@@ -54,21 +55,26 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      await registerServiceWorker();
-      const habits = getHabits();
+      try {
+        await registerServiceWorker();
+        const habits = getHabits();
 
-      if (habits.length > 0) {
-        scheduleAllHabitNotifications(habits);
-        checkStreakAlerts(habits, getStreak, isCompleted, formatDate);
+        if (habits.length > 0) {
+          scheduleAllHabitNotifications(habits);
+          checkStreakAlerts(habits, getStreak, isCompleted, formatDate);
+        }
+
+        // Only try push if notifications are supported and granted
+        const permission = getNotificationPermission();
+        if (permission === 'granted') {
+          await subscribeToWebPush();
+          await syncToServer(habits, getCompletions());
+        }
+      } catch (err) {
+        console.error('App init error:', err);
+      } finally {
+        setHabitsLoaded(true);
       }
-
-      // If notifications are granted, subscribe to real Web Push and sync
-      if (Notification.permission === 'granted') {
-        await subscribeToWebPush();
-        await syncToServer(habits, getCompletions());
-      }
-
-      setHabitsLoaded(true);
     };
     init();
   }, []);
