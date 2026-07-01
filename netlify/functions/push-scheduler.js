@@ -12,15 +12,19 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-// Returns HH:MM in local time for a given timezone offset
+// UTC-6 for Costa Rica
 function getCurrentHHMM() {
   const now = new Date();
-  return `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+  const offset = -6;
+  const local = new Date(now.getTime() + offset * 60 * 60 * 1000);
+  return `${String(local.getUTCHours()).padStart(2, '0')}:${String(local.getUTCMinutes()).padStart(2, '0')}`;
 }
 
 function getTodayStr() {
   const now = new Date();
-  return now.toISOString().split('T')[0];
+  const offset = -6;
+  const local = new Date(now.getTime() + offset * 60 * 60 * 1000);
+  return local.toISOString().split('T')[0];
 }
 
 async function sendPush(subscription, payload) {
@@ -35,7 +39,6 @@ async function sendPush(subscription, payload) {
     return true;
   } catch (err) {
     if (err.statusCode === 410 || err.statusCode === 404) {
-      // Subscription expired, remove it
       await supabase
         .from('push_subscriptions')
         .delete()
@@ -51,9 +54,8 @@ exports.handler = async () => {
   const currentHour = currentTime.slice(0, 2);
   const currentMinute = currentTime.slice(3, 5);
 
-  console.log(`Running push scheduler at ${currentTime} UTC`);
+  console.log(`Running push scheduler at ${currentTime} CR time`);
 
-  // Get all subscriptions
   const { data: subscriptions } = await supabase
     .from('push_subscriptions')
     .select('*');
@@ -62,7 +64,6 @@ exports.handler = async () => {
     return { statusCode: 200, body: 'No subscriptions' };
   }
 
-  // Get all habits with notifications enabled
   const { data: habits } = await supabase
     .from('habits')
     .select('*')
@@ -72,7 +73,6 @@ exports.handler = async () => {
     return { statusCode: 200, body: 'No habits with notifications' };
   }
 
-  // Get today's completions
   const { data: completions } = await supabase
     .from('completions')
     .select('habit_id')
@@ -83,7 +83,7 @@ exports.handler = async () => {
   let sent = 0;
 
   for (const habit of habits) {
-    // Check daily reminder time (within the same hour:minute window)
+    // Daily reminder
     if (habit.notif_time) {
       const [hh, mm] = habit.notif_time.split(':');
       if (hh === currentHour && mm === currentMinute) {
@@ -111,15 +111,18 @@ exports.handler = async () => {
       }
     }
 
-    // Streak alert - check if habit hasn't been completed for X days
+    // Streak alert - once per day at 10:00am CR time
     if (habit.streak_alert_days && !completedToday.has(habit.id)) {
-      // Only check once per day at 10:00
       if (currentHour === '10' && currentMinute === '00') {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - habit.streak_alert_days);
+        const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
         const { data: recentCompletions } = await supabase
           .from('completions')
           .select('date')
           .eq('habit_id', habit.id)
-          .gte('date', new Date(Date.now() - habit.streak_alert_days * 86400000).toISOString().split('T')[0]);
+          .gte('date', cutoffStr);
 
         if (!recentCompletions || recentCompletions.length === 0) {
           for (const sub of subscriptions) {
